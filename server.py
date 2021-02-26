@@ -8,7 +8,7 @@ import jwt
 import datetime
 # Start your code here, good luck (: ...
 db = SqliteDatabase('content.db')
-
+KEY = 'MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAkgDUAAjZUpWw9z'
 class BaseModel(Model):
     class Meta:
         database = db
@@ -71,6 +71,9 @@ def create_user():
         ret = json.dumps({'message':'user already exists'})
         return HTTPResponse(status = 500, body=ret )
 
+def generate_token(usr):
+    token = jwt.encode({"user":usr, "exp":datetime.datetime.utcnow() + datetime.timedelta(minutes=30)},KEY)
+    return token
 
 @route('/login', method='POST')
 def login():
@@ -80,28 +83,53 @@ def login():
         user = User.get(
             (User.username == body.get('username')) &
             (User.password == pw))
-        ret = json.dumps({'message':'logged in as ' + body.get('username')})
+        token = generate_token(body.get('username'))
+        ret = {"token":token.decode('utf-8'), "username":body.get('username')}
         return HTTPResponse(status=200,body=ret)
     except User.DoesNotExist:
         ret = json.dumps({'message':'Error on login.'})
         return HTTPResponse(status = 500, body=ret)
 
+def validate_token(user,tkn):
+    try:
+        decoded = jwt.decode(tkn, KEY)
+        if decoded['user'] == user:
+            return True
+        else:
+            return False
+    except jwt.ExpiredSignatureError:
+        return HTTPResponse(status = 400, body={"msg":"Validation error."})
 
-@route('/savenote', method='POST')
+
+
+@route('/create-note', method='POST')
 def save_note():
     body = request.json
+    user = body.get('username')
+    token = body.get('token')
+    if not validate_token(user,token):
+        return HTTPResponse(status=400,body={"msg":"Validation error."})
+
+    new_token = generate_token(user)
     note_title = body.get('title')
     note_content = body.get('content')
-    new_note = Notes(title=note_title, content = note_content)
+    id = (User.get(User.username==user)).id
+    new_note = Notes(user=id,title=note_title, content = note_content)
     new_note.save()
-    return
+    ret = {"token":new_token.decode('utf-8'), "username":user}
+    return HTTPResponse(status = 500, body=ret)
 
-@route('/allnotes')
-def get_all_notes():
+@route('/list-user-notes/<user>/<token>', method="GET")
+def get_all_notes(user,token):
+    if not validate_token(user,token):
+        return HTTPResponse(status=400,body={"msg":"Validation error."})
     res = []
+    id = (User.get(User.username==user)).id
     for note in Notes.select():
-        res.append(model_to_dict(note))
+        if note.user.id == id:
+            res.append(model_to_dict(note))
     return {'items':res}
+
 
 create_tables()
 run(host='localhost', port=8000)
