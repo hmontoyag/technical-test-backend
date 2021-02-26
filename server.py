@@ -1,32 +1,91 @@
 # Run with "python server.py"
-
-from bottle import run, route, template, request
+import json
+from bottle import run, route, template, request, hook, response, HTTPResponse
 from peewee import *
+from hashlib import md5
 from playhouse.shortcuts import model_to_dict
+import jwt
+import datetime
 # Start your code here, good luck (: ...
 db = SqliteDatabase('content.db')
 
-class Notes(Model):
-    title = CharField()
-    content = TextField()
-
+class BaseModel(Model):
     class Meta:
         database = db
 
-db.connect()
-#db.create_tables([Notes])
-def createNote(new_title,new_content):
-    new_note = Notes(title=new_title, content=new_content)
-    new_note.save()
+class User(BaseModel):
+    username = CharField(unique=True)
+    password = CharField()
+    email = CharField()
 
-@route('/hello')
-def HelloWorld():
-    return "HelloWorld"
+class Dummy(BaseModel):
+    name = CharField()
 
-@route('/')
-@route('/hello/<name>')
-def greet(name='Stranger'):
-    return template('Hello {{name}}, how are you?', name=name)
+class Notes(BaseModel):
+    user = ForeignKeyField(User, backref='notes')
+    title = CharField()
+    content = TextField()
+
+@hook('before_request')
+def before_request():
+    db.connect()
+
+@hook('after_request')
+def after_request():
+    db.close()
+    return
+
+def create_tables():
+    with db:
+        db.create_tables([User,Notes, Dummy])
+
+@route('/create-dummy', method='POST')
+def createDummy():
+    body = request.json
+    n = body.get('name')
+    dm = Dummy(name=n)
+    dm.save()
+    ret = json.dumps({'message':'Created ' + n})
+    return HTTPResponse(status = 200, body=ret )
+@route('/get-dummies', method='GET')
+def getDummies():
+    res = []
+    for d in Dummy.select():
+        res.append(model_to_dict(d))
+    return {'dummies':res}
+
+@route('/create-user', method='POST')
+def create_user():
+    try:
+        body = request.json
+        with db.atomic():
+            user = User.create(
+                username = body.get('username'),
+                password = md5(body.get('password').encode('utf-8')).hexdigest(),
+                email = body.get('email')
+            )
+            user.save()
+            ret = json.dumps({'message':'user Created '})
+            return HTTPResponse(status = 200, body=ret )
+    except IntegrityError:
+        ret = json.dumps({'message':'user already exists'})
+        return HTTPResponse(status = 500, body=ret )
+
+
+@route('/login', method='POST')
+def login():
+    body = request.json
+    try:
+        pw = md5(body.get('password').encode('utf-8')).hexdigest()
+        user = User.get(
+            (User.username == body.get('username')) &
+            (User.password == pw))
+        ret = json.dumps({'message':'logged in as ' + body.get('username')})
+        return HTTPResponse(status=200,body=ret)
+    except User.DoesNotExist:
+        ret = json.dumps({'message':'Error on login.'})
+        return HTTPResponse(status = 500, body=ret)
+
 
 @route('/savenote', method='POST')
 def save_note():
@@ -43,8 +102,6 @@ def get_all_notes():
     for note in Notes.select():
         res.append(model_to_dict(note))
     return {'items':res}
-#test = Notes(title='test1', content='Bueno esta parte deberia ser mas pendeja pa ver si funca.\nse.')
-#test.save()
-for note in Notes.select():
-    print(note.title)
+
+create_tables()
 run(host='localhost', port=8000)
