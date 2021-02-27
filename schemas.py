@@ -1,7 +1,12 @@
+"""
+Schemas for validating model data
+"""
 from marshmallow import Schema, fields, validate, ValidationError
 
-
 class UserSchema(Schema):
+    '''User schema
+    defines proper data values for users
+    '''
     username = fields.Email(
         required=True)
     password = fields.Str(required = True,
@@ -12,6 +17,9 @@ class UserSchema(Schema):
 
 
 class NotesSchema(Schema):
+    '''Notes schema
+    defines proper data values for created notes
+    '''
     user = fields.Email(required = True)
     title = fields.Str(required = True,
                         validate=[validate.Length(min=1, max=50)])
@@ -25,6 +33,9 @@ notes_schema = NotesSchema()
 
 
 def validate_user(username, password):
+    '''validate user data
+    returns an error if data isnt valid
+    '''
     try:
         data = user_schema.validate({"username":username, "password":password})
         return "OK"
@@ -32,9 +43,11 @@ def validate_user(username, password):
         return str(err.messages)
 
 def validate_note(user,title,content):
+    '''validate Notes data
+    returns an error if data isnt valid
+    '''
     try:
-        data = notes_schema.validate({"user":user, "title":title,
-                                     "content":content})
+        data = notes_schema.validate({"user":user, "title":title,                                     "content":content})
         return "OK"
     except ValidationError as err:
         return str(err.messages)

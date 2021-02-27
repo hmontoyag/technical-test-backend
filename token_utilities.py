@@ -7,6 +7,7 @@ import jwt
 from peewee import *
 from playhouse.shortcuts import model_to_dict
 from models import User
+from bottle import HTTPResponse
 KEY = 'MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAkgDUAAjZUpWw9z'
 
 def generate_token(usr):
@@ -38,5 +39,5 @@ def clear_token(user):
     """
     query = User.update(token='').where(User.username == user)
     query.execute()
-    usr = User.get(User.username==user)
+    usr = User.get(User.username == user)
     print(model_to_dict(usr))

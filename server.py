@@ -2,18 +2,17 @@
 """
 Starts and keeps the server running. Handles requests.
 """
-import datetime
+
 import json
 from hashlib import md5
 
-import jwt
 
 from bottle import run, route, request, hook, HTTPResponse
 from peewee import *
 from playhouse.shortcuts import model_to_dict
 from models import User, Notes, create_tables
 from token_utilities import generate_token, validate_token, clear_token
-from schemas import UserSchema, NotesSchema, validate_user, validate_note
+from schemas import validate_user, validate_note
 # Start your code here, good luck (: ...
 db = SqliteDatabase('content.db')
 
@@ -44,7 +43,7 @@ def create_user():
     validation = validate_user(username, password)
     password = md5(password.encode('utf-8')).hexdigest()
     if validation != "OK":
-        return HTTPResponse(status=500,body={"message":validation})
+        return HTTPResponse(status=500, body={"message":validation})
     try:
         with db.atomic():
             user = User.create(username=username, password=password)
@@ -83,7 +82,7 @@ def save_note():
     might return error if jwt is not valid or expired
     """
     body = request.json
-    user_id= body.get('user_id')
+    user_id = body.get('user_id')
     token = body.get('token')
     user = User.get(User.id == user_id).username
     if not validate_token(user, token):
@@ -92,7 +91,7 @@ def save_note():
     note_content = body.get('content')
     validation = validate_note(user, note_title, note_content)
     if validation != "OK":
-        return HTTPResponse(status=500,body={"message":validation})
+        return HTTPResponse(status=500, body={"message":validation})
     new_note = Notes(user=user_id, title=note_title, content=note_content)
     new_note.save()
     new_token = generate_token(user)
@@ -110,9 +109,9 @@ def get_all_notes(user_id, token):
     res = []
     for note in Notes.select():
         if note.user.id == user_id:
-            n = model_to_dict(note)
-            res.append({"id":n['id'], "title":n['title'],
-                        "content":n['content']})
+            new_note = model_to_dict(note)
+            res.append({"id":new_note['id'], "title":new_note['title'],
+                        "content":new_note['content']})
     new_token = generate_token(user)
     body = {"token":new_token.decode('utf-8'), 'items':res}
     return HTTPResponse(status=200, body=body)
@@ -120,8 +119,11 @@ def get_all_notes(user_id, token):
 
 @route('/logout', method='POST')
 def logout():
+    """POST for user logout
+    removes jwt in db preventing further user interaction until login
+    """
     body = request.json
-    user = body.get('user_id')
+    user_id = body.get('user_id')
     user = User.get(User.id == user_id).username
     clear_token(user)
     return HTTPResponse(status=200)
