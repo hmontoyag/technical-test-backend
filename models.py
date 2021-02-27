@@ -2,6 +2,7 @@
 """
 Models and table creation
 """
+import uuid
 from peewee import *
 
 
@@ -22,9 +23,10 @@ class BaseModel(Model):
 
 class User(BaseModel):
     """User model
-    username is unique.  Id is also added by default for indexing.
+    username is an email and unique.  Id is also added by default for indexing.
 
     """
+    id = CharField(primary_key=True, default=uuid.uuid4)
     username = CharField(unique=True)
     password = CharField()
     token = CharField(null=True)
