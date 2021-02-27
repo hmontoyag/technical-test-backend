@@ -11,39 +11,10 @@ import jwt
 from bottle import run, route, request, hook, HTTPResponse
 from peewee import *
 from playhouse.shortcuts import model_to_dict
-
-
+from models import User, Notes, create_tables
+from token_utilities import generate_token, validate_token, clear_token
 # Start your code here, good luck (: ...
 db = SqliteDatabase('content.db')
-KEY = 'MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAkgDUAAjZUpWw9z'
-
-
-class BaseModel(Model):
-    """Base Model to specifiy in only one place which database to use.
-    """
-    class Meta:
-        """Defining which database to use. Is extended by other models.
-        """
-        database = db
-
-
-class User(BaseModel):
-    """User model
-    username is unique.  Id is also added by default for indexing.
-
-    """
-    username = CharField(unique=True)
-    password = CharField()
-    email = CharField()
-
-
-class Notes(BaseModel):
-    """Notes Model
-    user is foreign key to User model, Id added by default
-    """
-    user = ForeignKeyField(User, backref='notes')
-    title = CharField()
-    content = TextField()
 
 
 @hook('before_request')
@@ -60,13 +31,6 @@ def after_request():
     db.close()
 
 
-def create_tables():
-    """creates tables if not created
-    """
-    with db:
-        db.create_tables([User, Notes])
-
-
 @route('/create-user', method='POST')
 def create_user():
     """POST to create user
@@ -78,22 +42,16 @@ def create_user():
         with db.atomic():
             user = User.create(
                 username=body.get('username'),
-                password=md5(body.get('password').encode('utf-8')).hexdigest(),
-                email=body.get('email')
+                password=md5(body.get('password').encode('utf-8')).hexdigest()
             )
             user.save()
-            ret = json.dumps({'message':'user Created '})
+            print(model_to_dict(user))
+            ret = json.dumps({'message':'user created'})
             return HTTPResponse(status=200, body=ret)
     except IntegrityError:
         ret = json.dumps({'message':'user already exists'})
         return HTTPResponse(status=500, body=ret)
 
-def generate_token(usr):
-    """generates jwt for input user
-    """
-    token = jwt.encode({"user":usr, "exp":datetime.datetime.utcnow()
-                                          + datetime.timedelta(minutes=30)}, KEY)
-    return token
 
 @route('/login', method='POST')
 def login():
@@ -114,19 +72,6 @@ def login():
         ret = json.dumps({'message':'Error on login.'})
         return HTTPResponse(status=500, body=ret)
 
-def validate_token(user, tkn):
-    """validates inputs
-    takes in user and a jwt to validate them
-    """
-    try:
-        decoded = jwt.decode(tkn, KEY)
-        if decoded['user'] == user:
-            return True
-        return False
-    except jwt.ExpiredSignatureError:
-        return HTTPResponse(status=400, body={"msg":"Validation error."})
-
-
 
 @route('/create-note', method='POST')
 def save_note():
@@ -138,8 +83,7 @@ def save_note():
     user = body.get('username')
     token = body.get('token')
     if not validate_token(user, token):
-        return HTTPResponse(status=400, body={"msg":"Validation error."})
-
+        return HTTPResponse(status=400, body={"message":"Validation error."})
     new_token = generate_token(user)
     note_title = body.get('title')
     note_content = body.get('content')
@@ -155,13 +99,25 @@ def get_all_notes(user, token):
     takes in parameters from url for user and the jwt
     """
     if not validate_token(user, token):
-        return HTTPResponse(status=400, body={"msg":"Validation error."})
+        return HTTPResponse(status=500, body={"message":"Validation error."})
     res = []
     user_id = (User.get(User.username == user)).id
     for note in Notes.select():
         if note.user.id == user_id:
-            res.append(model_to_dict(note))
-    return {'items':res}
+            n = model_to_dict(note)
+            res.append({"id":n['id'], "title":n['title'],
+                        "content":n['content']})
+    new_token = generate_token(user)
+    body = {"token":new_token.decode('utf-8'), 'items':res}
+    return HTTPResponse(status=200, body=body)
+
+
+@route('/logout', method='POST')
+def logout():
+    body = request.json
+    user = body.get('username')
+    clear_token(user)
+    return HTTPResponse(status=200)
 
 
 create_tables()
