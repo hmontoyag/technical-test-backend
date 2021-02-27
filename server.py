@@ -113,7 +113,7 @@ def get_all_notes(user_id, token):
             res.append({"id":new_note['id'], "title":new_note['title'],
                         "content":new_note['content']})
     new_token = generate_token(user)
-    body = {"token":new_token.decode('utf-8'), 'items':res}
+    body = {"user_id":user_id, "token":new_token.decode('utf-8'), 'items':res}
     return HTTPResponse(status=200, body=body)
 
 
@@ -126,7 +126,7 @@ def logout():
     user_id = body.get('user_id')
     user = User.get(User.id == user_id).username
     clear_token(user)
-    return HTTPResponse(status=200)
+    return HTTPResponse(status=200, body={"message":"Log out succesful."})
 
 
 create_tables()
