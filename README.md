@@ -1,51 +1,39 @@
-# Creación de un API REST
+# Archivos:
 
-La prueba consistirá en crear un simple API REST para un único recurso, la prueba se dividirá en una funcionalidad básica y en funcionalidades adicionales que sumarán puntos a la evaluación. 
+## server.py
 
-Este repositorio contiene los archivos base, los cambios realizados deben subirse en un repositorio propio, el link de ese repositorio debe enviarse por email.
+### create_user()
+  POST, recibe un JSON conteniendo 'username', 'password'. 
+  'username' tiene que ser un email.
+  'password' debe de estar entre 8 y 40 caracteres.
+  Si el metodo es exitoso, solo indica que lo fue (el usuario aun tiene que hacer login).
+  
+ ### login()
+  POST, recibe un JSON conteniendo 'username', 'password'. 
+  De ser exitoso, retorna un JSON con el 'user_id' y 'token' (jwt) asignado. Cada vez que el usuario haga login o realize un pedido (crear o listar notas), recibe un nuevo token. Esto actua como forma de renovar el token en relacion al tiempo de expiracion.
+  
+ ### save_note()
+  POST, recibe un JSON con un 'user_id', 'token', 'title', 'content'
+  Verifica si el JWT dentro de 'token' es valido para el 'user_id', y si aun no expira
+  Valida si 'title' y 'content' cumplen con los parametros definidos por el schema en schema.py
+  Si todo es correcto, guarda la nota y retorna un JSON con 'user_id' y un nuevo 'token'.
+  
+ ### get_all_notes()
+ GET, .../list-user-notes/<user_id>/<token>
+  Verifica si el 'token' es valido para el usuario.
+  De serlo, retorna un JSON conteniendo el 'user_id', 'token', y una lista con las notas creadas por el usuario correspondiente.
+  
+ ### logout()
+  POST, recibe un JSON con el 'user_id'
+  Elimina cualquier registro de un JWT relacionado a ese usuario dentro de la base de datos, esto significa que el usuario ya no cuenta con forma de utilizar ningun metodo excepto login.
+  
 
-## 1. Funcionalidad básica
-Se desea un endpoint para poder administrar **notas** (crear y listar), los datos se guardará en una base de datos **sqlite**. Para ello se utilizarán los siguientes paquetes de Python.
-* [peewee](http://docs.peewee-orm.com/en/latest/ "peewee") (ORM)
-* [bottle](https://bottlepy.org/docs/dev/ "bottle") (miniframework web)
+## models.py
+Contiene los dos modelos User() y Notes().  BaseModel() es utilizado para definir la base de datos a usar. Este archivo tambien se encarga de crear las tablas en caso estas no exista aun.
 
-Los campos que tendrá el modelo no son relevantes.
+## schema.py
+Define los schemas utilizados para los objetos que luego entran en User() y Notes().  Asi mismo, contiene los metodos para validar si los objetos a ser insertados cumplen con estos schemas.
 
-## 2. Funcionalidades adicionales
-Las siguientes funcionalidades se construirán sobre la funcionalidad base.
-
-**Serialización y validación**
-
-Se desea validar los datos que se reciben via POST y mostrar los errores al usuario que usa el API, serializar la lista de objetos para enviarlas como json. Para ello se utilizará la librería [marshmallow](https://marshmallow.readthedocs.io/en/latest/ "marshmallow").
-
-**Usuario y Autentificación**
-
-Se desea que el API sea restringido mediante algún método de autenficación.
-
-**JWT**
-
-Se desea que el usuario se autentifique mediante json web tokens, para ello se utializará la librería [pyjwt](https://github.com/jpadilla/pyjwt "pyjwt")
-
-**Autorización**
-
-Se desea asociar una **nota** con un **usuario**, de tal manera que cada usuario solo pueda ver sus propias notas.
-
-**Cliente del API**
-
-Se desea tener un cliente web que haga uso del API desde frontend (html y javascript). Ver siguiente sección.
-
-# Estructura de archivos
-El repositorio contiene archivos que sirven como guia, pero se deja la libertad de hacer los cambios que se consideren necesarios.
-* **.gitignore** - Archivos ignorados por git, añadir la base de datos sqlite que se genere.
-* **requirements.txt** - Los paquetes python que se utilizarán para la prueba. Se recomienda usar un entorno virtual (ejem. [virtualenv](https://virtualenv.pypa.io/en/stable/ "virtualenv")) para instalarlos.
-* **server.py** - Contendrá tóda la lógica del api, este correrá en el puerto 8000.
-* **client.py** - Un pequeño servidor que corre en el puerto 5000 y sirve el archivo index.html, aquí no se necesita hacer ninguna modificación.
-* **index.html** - Donde idealmente deberá estar toda la lógica para loguearse y mostrar los datos del api.
-
-# Objetivos de la prueba
-* Evaluar el conocimiento general del lenguaje Python.
-* Evaluar el conocimiento en arquitecturas web (MVC, REST).
-* Comprobar el conocimiento independientemente de la herramienta / framework.
-* Evaluar buenas prácticas en el código relacionadas con Python (pep8).
-* Evaluar conocimientos basicos de frontend.
-* Evaluar el modelo mental que se tiene para la organización de classes, funciones, módulos.
+## token_utilites.py
+Maneja la creacion y validacion de jwt relacionados a los usuarios.  Cuando un usuario hace login o cuando realiza algun otro request de manera exitosa, un nuevo token es asignado a el e insertado en la base de datos, asignado a dicho usuario.  Cualquier request que el usuario haga (excepto logout), tendra que entregar dicho nuevo token.
+El token expira cuando el usuario hace logout, o luego de 30 minutos.
