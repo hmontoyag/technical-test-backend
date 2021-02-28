@@ -34,7 +34,7 @@ def after_request():
 @route('/create-user', method='POST')
 def create_user():
     """POST to create user
-    Takes in JSON with username, password, and email
+    Takes in JSON with username, password
     returns error if user already exists
     """
     body = request.json
